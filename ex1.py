@@ -12,6 +12,11 @@ from transformers import (
 import numpy as np
 import evaluate
 
+
+def tokenize_function(examples, tokenizer):
+    return tokenizer(examples["sentence1"], examples["sentence2"], truncation=True)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Fine-tune a pretrained model on MRPC (GLUE) for paraphrase detection."
@@ -70,10 +75,12 @@ def main() -> None:
 
         tokenizer = AutoTokenizer.from_pretrained(args.model_path)
 
-        def tokenize_function(examples):
-            return tokenizer(examples["sentence1"], examples["sentence2"], truncation=True)
-        train_dataset = train_dataset.map(tokenize_function, batched=True)
-        eval_dataset = eval_dataset.map(tokenize_function, batched=True)
+        train_dataset = train_dataset.map(
+            tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}
+        )
+        eval_dataset = eval_dataset.map(
+            tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}
+        )
 
         data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
@@ -111,20 +118,49 @@ def main() -> None:
         eval_result = trainer.evaluate()
         print(f"Evaluation results: {eval_result}")
 
+        eval_acc = eval_result["eval_accuracy"]
+        with open("res.txt", "a", encoding="utf-8") as f:
+            f.write(
+                f"epoch_num: {args.num_train_epochs}, "
+                f"lr: {args.lr}, "
+                f"batch_size: {args.batch_size}, "
+                f"eval_acc: {eval_acc:.4f}\n"
+            )
+
         trainer.save_model(run_name)
 
             
     if args.do_predict:
-        # TODO: load tokenizer + fine-tuned model from args.model_path
-        #   tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-        #   model = AutoModelForSequenceClassification.from_pretrained(args.model_path)
+        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+        model = AutoModelForSequenceClassification.from_pretrained(args.model_path)
 
-        # TODO: tokenize predict_dataset (same tokenization as training)
+        model.eval()
 
-        # TODO: build a Trainer (or run a manual eval loop) and run trainer.predict(...)
+        predict_dataset = predict_dataset.map(
+            tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}
+        )
+        # MRPC test split has label=-1 (unlabeled); strip it so Trainer.predict
+        # doesn't try to compute CrossEntropyLoss on out-of-range targets.
+        if "label" in predict_dataset.column_names:
+            predict_dataset = predict_dataset.remove_columns(["label"])
+        data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-        # TODO: write predictions to predictions.txt
-        pass
+
+        trainer = Trainer(
+            model=model,
+            data_collator=data_collator,
+            processing_class=tokenizer,
+        )
+
+        predictions, _, _ = trainer.predict(predict_dataset)
+        predicted_labels = np.argmax(predictions, axis=1)
+
+        with open("predictions.txt", "w", encoding="utf-8") as f:
+            for i in range(len(predict_dataset)):
+                s1 = predict_dataset[i]["sentence1"]
+                s2 = predict_dataset[i]["sentence2"]
+                label = predicted_labels[i]
+                f.write(f"{s1}###{s2}###{label}\n")
 
 
 if __name__ == "__main__":
