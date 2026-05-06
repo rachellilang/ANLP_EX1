@@ -145,9 +145,14 @@ def main() -> None:
             predict_dataset = predict_dataset.remove_columns(["label"])
         data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
+        predict_args = TrainingArguments(
+            output_dir="./results",
+            report_to="none",
+        )
 
         trainer = Trainer(
             model=model,
+            args=predict_args,
             data_collator=data_collator,
             processing_class=tokenizer,
         )
