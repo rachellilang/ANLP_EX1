@@ -115,10 +115,37 @@ def main() -> None:
         )
         trainer.train()
 
+        train_eval_result = trainer.evaluate(
+            eval_dataset=train_dataset, metric_key_prefix="train_eval"
+        )
+        train_acc = train_eval_result["train_eval_accuracy"]
+        print(f"Train evaluation results: {train_eval_result}")
+
         eval_result = trainer.evaluate()
         print(f"Evaluation results: {eval_result}")
 
         eval_acc = eval_result["eval_accuracy"]
+
+        print(f"Final Train Accuracy: {train_acc:.4f}")
+        print(f"Final Validation Accuracy: {eval_acc:.4f}")
+
+        # Write validation errors to file for qualitative analysis
+        val_pred_out = trainer.predict(eval_dataset)
+        val_preds = np.argmax(val_pred_out.predictions, axis=1)
+        val_labels = val_pred_out.label_ids
+
+        val_err_path = f"val_errors_{run_name}.txt"
+        with open(val_err_path, "w", encoding="utf-8") as f:
+            f.write("idx\tpred\tlabel\tsentence1\tsentence2\n")
+            for i in range(len(eval_dataset)):
+                if int(val_preds[i]) != int(val_labels[i]):
+                    s1 = eval_dataset[i]["sentence1"].replace("\t", " ").replace("\n", " ")
+                    s2 = eval_dataset[i]["sentence2"].replace("\t", " ").replace("\n", " ")
+                    f.write(
+                        f"{i}\t{int(val_preds[i])}\t{int(val_labels[i])}\t{s1}\t{s2}\n"
+                    )
+        print(f"Wrote {val_err_path}")
+
         with open("res.txt", "a", encoding="utf-8") as f:
             f.write(
                 f"epoch_num: {args.num_train_epochs}, "
