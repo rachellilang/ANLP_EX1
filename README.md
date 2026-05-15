@@ -1,6 +1,6 @@
 # Advanced NLP Exercise 1: Fine Tuning
 
-This is the code base for ANLP HUJI course exercise 1, fine tuning pretrained models to perform sentiment analysis on the MRPC dataset.
+This is the code base for ANLP HUJI course exercise 1, fine tuning pretrained models to perform paraphrase detection on the MRPC dataset.
 
 # Install
 ``` pip install -r requirements.txt ```
