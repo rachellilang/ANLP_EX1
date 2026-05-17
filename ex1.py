@@ -3,11 +3,11 @@ import argparse
 import wandb
 from datasets import load_dataset
 from transformers import (
-    AutoTokenizer, 
-    AutoModelForSequenceClassification, 
-    TrainingArguments, 
-    Trainer, 
-    DataCollatorWithPadding
+    AutoTokenizer,
+    AutoModelForSequenceClassification,
+    TrainingArguments,
+    Trainer,
+    DataCollatorWithPadding,
 )
 import numpy as np
 import evaluate
@@ -59,9 +59,9 @@ def main() -> None:
             range(min(args.max_predict_samples, len(predict_dataset)))
         )
 
-    run_name = f"mrpc_ep{args.num_train_epochs}_lr{args.lr}_bs{args.batch_size}"
-
     if args.do_train:
+        run_name = f"mrpc_ep{args.num_train_epochs}_lr{args.lr}_bs{args.batch_size}"
+
         wandb.init(
             project="anlp-ex1-mrpc",
             name=run_name,
@@ -89,7 +89,7 @@ def main() -> None:
             logits, labels = eval_pred
             predictions = np.argmax(logits, axis=1)
             return metric.compute(predictions=predictions, references=labels)
-        
+
         model = AutoModelForSequenceClassification.from_pretrained(args.model_path, num_labels=2)
 
         training_args = TrainingArguments(
@@ -156,7 +156,6 @@ def main() -> None:
 
         trainer.save_model(run_name)
 
-            
     if args.do_predict:
         tokenizer = AutoTokenizer.from_pretrained(args.model_path)
         model = AutoModelForSequenceClassification.from_pretrained(args.model_path)
@@ -166,10 +165,6 @@ def main() -> None:
         predict_dataset = predict_dataset.map(
             tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}
         )
-        # MRPC test split has label=-1 (unlabeled); strip it so Trainer.predict
-        # doesn't try to compute CrossEntropyLoss on out-of-range targets.
-        if "label" in predict_dataset.column_names:
-            predict_dataset = predict_dataset.remove_columns(["label"])
         data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
         predict_args = TrainingArguments(
